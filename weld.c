@@ -54,12 +54,14 @@ int set_interface_attribs(int fd, int speed)
 	tty.c_cc[VMIN] = 255; // should_block ? 1 : 0;
 	tty.c_cc[VTIME] = 1; // 0.1s read timeout
 
-	tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+	tty.c_iflag &= ~(IXON | IXOFF | IXANY); // no software flow control
+//	tty.c_iflag &= ~(IXANY); tty.c_iflag |= (IXON | IXOFF) // software flow control
+
 	tty.c_cflag |= (CLOCAL | CREAD);
 	tty.c_cflag &= ~(PARENB | PARODD);
 	tty.c_cflag |= PARENB;
 	tty.c_cflag &= ~CSTOPB;
-//	tty.c_cflag |= CCTS_OFLOW; //CRTSCTS;
+//	tty.c_cflag |= CRTSCTS; // hardware flow control, supported randomly on linux.
 
 	if(tcsetattr(fd, TCSANOW, &tty) != 0)
 	{
@@ -343,6 +345,8 @@ int main(int argc, char** argv)
 	if(n_weld_points[1] > max_dots)
 		max_dots = n_weld_points[1];
 
+	automove_outp(automove, Z_VALVE_UP);
+	automove_wait(automove, 0.5);
 	automove_outp(automove, GAS_VALVE);
 	automove_wait(automove, 1.0);
 	automove_outp(automove, 0);
@@ -369,15 +373,15 @@ int main(int argc, char** argv)
 				automove_outp(automove, GAS_VALVE | Z_VALVE_DOWN);
 				automove_wait(automove, 1.0);
 				automove_outp(automove, GAS_VALVE | Z_VALVE_DOWN | WELDER_ON);
-				automove_wait(automove, 1.0);
+				automove_wait(automove, 0.75);
 				automove_outp(automove, GAS_VALVE | Z_VALVE_DOWN);
 				automove_wait(automove, 0.5);
 				automove_outp(automove, GAS_VALVE);
-				automove_wait(automove, 0.5);
+				automove_wait(automove, 0.25);
 				automove_outp(automove, Z_VALVE_UP);
 				automove_wait(automove, 0.5);
 				automove_outp(automove, 0);
-				sleep(5);
+				sleep(4);
 			}
 		}
 	}

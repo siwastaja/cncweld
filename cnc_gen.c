@@ -23,10 +23,10 @@ int main(int argc, char** argv)
 {
 
 	float part_separation = 5.0; // clearance between main board, side and front
-	float thickness = 4.0; // Thickness of the material.
+	float thickness = 3.0; // Thickness of the material.
 	float cell_length = 65.0;
 	float hole = 18.2;
-	float wallgaps[4] = {7.0, 1.8, 7.0, 1.8};
+	float wallgaps[4] = {7.0, 1.5, 7.0, 3.15}; // 3.15 = BMS board thickness
 	float cellgap = 1.8;
 	int ys[2];
 	int x;
@@ -315,6 +315,7 @@ int main(int argc, char** argv)
 
 
 	printf("Main panel size without fingers: %.2f x %.2f\n", outline[1][X]-outline[0][X], outline[2][Y]-outline[1][Y]);
+	printf("Total box size: %.2f x %.2f x %.2f\n", outline[1][X]-outline[0][X]+2.0*thickness, outline[2][Y]-outline[1][Y]+2.0*thickness, cell_length);
 
 
 /*

@@ -33,8 +33,8 @@ int main(int argc, char** argv)
 	float hole = 18.43;
 	float sizetests[NUM_SIZETESTS] = {-0.20, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.20};
 //	float sizetests[NUM_SIZETESTS] = {-4.0, -3.0, -2.0, -1.0, 0, 1.0, 2.0, 3.0, 4.0};
-	float wallgaps[4] = {7.0, 20.0-hole, 7.0, 3.15};
-	float cellgap = 20.0-hole;
+	float wallgaps[4] = {7.0, 20.5-hole, 7.0, 3.15};
+	float cellgap = 20.5-hole;
 
 	int ys[2];
 	int x;
@@ -80,7 +80,7 @@ int main(int argc, char** argv)
 	// Larger number adds more structural integrity.
 	int num_front_holes_y = 3;
 
-	int side_at_back = 1;
+	int side_at_back = 0;
 
 	int do_covers = 1;
 	float cover_thickness = 2.3; // including busbar space.
@@ -224,7 +224,7 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-			origin_y += cell_length + part_separation + do_covers?(cover_thickness*2.0):0.0;
+			origin_y += cell_length + part_separation + (do_covers?(cover_thickness*2.0):0.0);
 			front_origin_y = origin_y;
 		}
 	}
@@ -484,7 +484,9 @@ int main(int argc, char** argv)
 
 	printf("Main panel size without fingers: %.2f x %.2f\n", outline[1][X]-outline[0][X], outline[2][Y]-outline[1][Y]);
 	printf("Total box size: %.2f x %.2f x %.2f\n", outline[1][X]-outline[0][X]+2.0*thickness, outline[2][Y]-outline[1][Y]+2.0*thickness, cell_length+2.0*cover_thickness);
-
+	printf("Sheet needed: %.2f x %.2f\n", outline[1][X]-outline[0][X]+2.0*thickness+cell_length+part_separation, outline[2][Y]-outline[1][Y]+2.0*thickness+cell_length+2.0*cover_thickness+part_separation);
+	if(do_covers)
+		printf("Cover size with fingers (sheet needed): %.2f x %.2f\n", cover_outline[1][X]-cover_outline[0][X]+2.0*thickness, cover_outline[2][Y]-cover_outline[1][Y]+2.0*thickness);
 
 /*
 

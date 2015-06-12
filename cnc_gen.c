@@ -51,11 +51,11 @@ int main(int argc, char** argv)
 
 	float spacing_trim = 1.01; // Adds extra gap in x direction.
 
-	float feedrate = 640.0;
+	float feedrate = 590.0; // was overridden to 540 last time.
 	int power = 70; // 70 -> 20 mA
 	float extrapower = 0.0;
-	float power_increase_per_cut = 0.05;
-	int markpower = 1;
+	float power_increase_per_cut = 0.03;
+	int markpower = 4;
 	float lasertrim = 0.12; // How much excess does the laser burn.
 
 	// focus = 7mm
@@ -229,7 +229,7 @@ int main(int argc, char** argv)
 		side_origin_x = origin_x;
 	}
 
-	if(do_sides)
+	if(do_sides == 1)
 	{
 		if(side_at_back)
 		{

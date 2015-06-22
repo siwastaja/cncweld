@@ -10,6 +10,7 @@
 #define NUM_SIZETESTS 9
 
 #define CUT()   {if(ZMODE) fprintf(gfile, "G1 Z-5.0\n"); else fprintf(gfile, "M03 S%02d\n", (int)((float)power+extrapower)); extrapower += power_increase_per_cut;}
+#define CUT_PWR(pwr) {if(ZMODE) fprintf(gfile, "G1 Z-5.0\n"); else fprintf(gfile, "M03 S%02d\n", (int)((pwr)*((float)power+extrapower))); extrapower += power_increase_per_cut*(pwr);}
 #define CUT_MARK() {if(ZMODE) fprintf(gfile, "G1 Z-5.0\n"); else fprintf(gfile, "M03 S%02d\n", markpower);}
 #define UNCUT() {if(ZMODE) fprintf(gfile, "G1 Z5.0\n");  else fprintf(gfile, "M05\n");}
 
@@ -51,15 +52,16 @@ int main(int argc, char** argv)
 
 	float spacing_trim = 1.01; // Adds extra gap in x direction.
 
-	float feedrate = 590.0; // was overridden to 540 last time.
-	int power = 70; // 70 -> 20 mA
+	float feedrate = 530.0;
+	int power = 73; // 70 -> 20 mA
 	float extrapower = 0.0;
-	float power_increase_per_cut = 0.03;
+	float power_increase_per_cut = 0.04;  // 0.03
+	float vertical_power_mult = 1.05;
 	int markpower = 4;
 	float lasertrim = 0.12; // How much excess does the laser burn.
 
 	// focus = 7mm
-	float cover_feedrate = 850.0;
+	float cover_feedrate = 700.0;
 	int cover_power = 70;
 	float cover_lasertrim = 0.09;
 
@@ -76,7 +78,7 @@ int main(int argc, char** argv)
 	// two holes, one near top, one near bottom. Can be used for wires or
 	// mounting.
 	// 0 = don't do, 1 = do, 2 = use marking power only
-	int do_side_bonusholes = 2;
+	int do_side_bonusholes = 2; // 2
 	float side_bonushole_size = 2.0; // 3.20 tapped to M4 for mounting.
 	// Distance (of hole center) from the cell
 	// main board. Absolute minimum is side_bonushole_size/2.
@@ -105,7 +107,7 @@ int main(int argc, char** argv)
 	int do_covers = 1;
 
 	double delay_per_cell = 6.0; // seconds of delay per round hole, or one cell length worth of border.
-	double cover_delay_per_cell = 4.0; // seconds of delay per round hole, or one cell length worth of border.
+	double cover_delay_per_cell = 3.0; // seconds of delay per round hole, or one cell length worth of border.
 
 /*
 	FRONT & BACK
@@ -130,7 +132,7 @@ int main(int argc, char** argv)
 
 	if(argc < 5)
 	{
-		printf("Usage: cnc_gen <outfile_prefix> <y1> <y2> <x>\n");
+		printf("Usage: cnc_gen <outfile_prefix> <y1> <y2> <x> [b]\n");
 		printf("Ex.: cnc_gen out 4 3 11\n");
 		printf("__-_-_-_-_-_4_-_-_-_-_-__\n");
 		printf("| O   O   O   O   O   O |\n");
@@ -141,6 +143,7 @@ int main(int argc, char** argv)
 		printf("|  .O  .O  .O  .O  .O   |\n");
 		printf("| O   O   O   O   O   O |\n");
 		printf("------------2------------\n");
+		printf("b = bottom sheet mode (tight special holes)\n");
 		return 1;
 	}
 
@@ -153,6 +156,13 @@ int main(int argc, char** argv)
 
 	x = atoi(argv[4]);
 	if(x < 1 || x > 100) { printf("Invalid x\n"); return 1;}
+
+	int bottom = 0;
+	if(argc > 5 && argv[5][0] == 'b')
+	{
+		printf("bottom mode\n");
+		bottom = 1;
+	}
 
 	char mainfilename[1000];
 	char coverfilename[1000];
@@ -325,7 +335,15 @@ int main(int argc, char** argv)
 
 			fprintf(gfile, "G00 X%.2f Y%.2f (WELDPOINT %u;%u;%.2f;%.2f)\n", start_x_trimmed,
 				start_y_trimmed, curx, cury, mid_x-origin_x, mid_y-origin_y);
-			CUT();
+
+			if(bottom)
+			{
+				CUT_PWR(0.80);
+			}
+			else
+			{
+				CUT();
+			}
 			fprintf(gfile, "G02 X%.2f Y%.2f I%.2f J%.2f", start_x_trimmed, start_y_trimmed,
 				offset_i, offset_j);
 
@@ -335,6 +353,17 @@ int main(int argc, char** argv)
 			fprintf(gfile, "\n");
 
 			UNCUT();
+
+			if(bottom)
+			{
+				fprintf(gfile, "G00 X%.2f Y%.2f\n", start_x_trimmed+lasertrim,
+					start_y_trimmed);
+				CUT_PWR(0.30);
+				fprintf(gfile, "G02 X%.2f Y%.2f I%.2f J%.2f\n", start_x_trimmed+lasertrim, start_y_trimmed,
+					offset_i-lasertrim, offset_j);
+				UNCUT();
+
+			}
 			delay(gfile, delay_per_cell);
 
 		}
@@ -376,7 +405,7 @@ int main(int argc, char** argv)
 
 	if(do_covers)
 	{
-		fprintf(coverfile, "G00 X%.2f Y%.2f\n", cover_outline[0][X]-cover_lasertrim, cover_outline[0][Y]-cover_lasertrim);
+		fprintf(coverfile, "G00 X%.2f Y%.2f\n", cover_outline[0][X]-thickness-cover_lasertrim, cover_outline[0][Y]-cover_lasertrim);
 		COVER_CUT();
 	}
 
@@ -417,13 +446,13 @@ int main(int argc, char** argv)
 
 	if(do_covers)
 	{
-		fprintf(coverfile, "G01 X%.2f Y%.2f F%.2f\n", cover_outline[1][X]+cover_lasertrim, cover_outline[1][Y]-cover_lasertrim, cover_feedrate);
+		fprintf(coverfile, "G01 X%.2f Y%.2f F%.2f\n", cover_outline[1][X]+thickness+cover_lasertrim, cover_outline[1][Y]-cover_lasertrim, cover_feedrate);
 
 	}
 
 	UNCUT();
 	delay(gfile, delay_per_cell*x);
-	CUT();
+	CUT_PWR(vertical_power_mult);
 	if(do_covers)
 	{
 		COVER_UNCUT();
@@ -447,6 +476,7 @@ int main(int argc, char** argv)
 			fprintf(gfile, "G01 X%.2f Y%.2f\n", outline[1][X]+thickness+lasertrim, finger_end_y+lasertrim);
 			fprintf(gfile, "G01 X%.2f Y%.2f\n", outline[1][X]+lasertrim, finger_end_y+lasertrim);
 
+/*
 			if(do_covers)
 			{
 				fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[1][X]+cover_lasertrim, cfinger_start_y-cover_lasertrim);
@@ -455,6 +485,7 @@ int main(int argc, char** argv)
 				fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[1][X]+cover_lasertrim, cfinger_end_y+cover_lasertrim);
 
 			}
+*/
 		}
 	}
 
@@ -463,7 +494,7 @@ int main(int argc, char** argv)
 
 	if(do_covers)
 	{
-		fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[2][X]+cover_lasertrim, cover_outline[2][Y]+cover_lasertrim);
+		fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[2][X]+thickness+cover_lasertrim, cover_outline[2][Y]+cover_lasertrim);
 	}
 
 	UNCUT();
@@ -472,7 +503,7 @@ int main(int argc, char** argv)
 	if(do_covers)
 	{
 		COVER_UNCUT();
-		delay(coverfile, cover_delay_per_cell*ys[0]);
+		delay(coverfile, 0.7*cover_delay_per_cell*ys[0]);
 		COVER_CUT();
 	}
 
@@ -510,12 +541,12 @@ int main(int argc, char** argv)
 
 	if(do_covers)
 	{
-		fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[3][X]-cover_lasertrim, cover_outline[3][Y]+cover_lasertrim);
+		fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[3][X]-thickness-cover_lasertrim, cover_outline[3][Y]+cover_lasertrim);
 	}
 
 	UNCUT();
 	delay(gfile, delay_per_cell*x);
-	CUT();
+	CUT_PWR(vertical_power_mult);
 	if(do_covers)
 	{
 		COVER_UNCUT();
@@ -539,6 +570,7 @@ int main(int argc, char** argv)
 			fprintf(gfile, "G01 X%.2f Y%.2f\n", outline[3][X]-thickness-lasertrim, finger_end_y-lasertrim);
 			fprintf(gfile, "G01 X%.2f Y%.2f\n", outline[3][X]-lasertrim, finger_end_y-lasertrim);
 
+/*
 			if(do_covers)
 			{
 				fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[3][X]-cover_lasertrim, cfinger_start_y+cover_lasertrim);
@@ -546,6 +578,7 @@ int main(int argc, char** argv)
 				fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[3][X]-thickness-cover_lasertrim, cfinger_end_y-cover_lasertrim);
 				fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[3][X]-cover_lasertrim, cfinger_end_y-cover_lasertrim);
 			}
+*/
 		}
 
 	}
@@ -555,7 +588,7 @@ int main(int argc, char** argv)
 
 	if(do_covers)
 	{
-		fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[0][X]-cover_lasertrim, cover_outline[0][Y]-cover_lasertrim);
+		fprintf(coverfile, "G01 X%.2f Y%.2f\n", cover_outline[0][X]-thickness-cover_lasertrim, cover_outline[0][Y]-cover_lasertrim);
 
 	}
 
@@ -564,7 +597,7 @@ int main(int argc, char** argv)
 	if(do_covers)
 	{
 		COVER_UNCUT();
-		delay(coverfile, cover_delay_per_cell*ys[0]);
+//		delay(coverfile, 0.7*cover_delay_per_cell*ys[0]);
 	}
 
 
@@ -611,7 +644,7 @@ n ||||  v step
 
 		UNCUT();
 		delay(gfile, delay_per_cell*x);
-		CUT();
+		CUT_PWR(vertical_power_mult);
 
 		// Right vertical
 		for(int cury = 0; cury < num_side_front_fingers; cury++)
@@ -647,7 +680,7 @@ n ||||  v step
 
 		UNCUT();
 		delay(gfile, delay_per_cell*x);
-		CUT();
+		CUT_PWR(vertical_power_mult);
 
 		// Left vertical
 
@@ -714,9 +747,42 @@ n ||||  v step
 	// Do front panel
 	if(do_fronts)
 	{
+		// Cut ventilation holes
+
+		float fhole_width = (hole+cellgap) - front_mid_width;
+		float fhole_hstep = (cell_length - 2.0*thickness - 2.0*front_y_frame_width)/((float)num_front_holes_y);
+		float fhole_height = fhole_hstep-front_mid_width;
+
+		for(int cury = 0; cury < ys[0]; cury++)
+		{
+			float fhole_start_y = origin_y + wallgaps[1] + y_step*cury + hole/2.0 - fhole_width/2.0;
+			if(ys[0] == ys[1])
+				fhole_start_y += (hole+cellgap)/4.0;
+
+			float fhole_end_y = fhole_start_y + fhole_width;
+
+			for(int curx = 0; curx < num_front_holes_y; curx++)
+			{
+				float fhole_start_x = front_origin_x + thickness + front_y_frame_width + fhole_hstep*curx
+						+ front_mid_width/2.0;
+				float fhole_end_x = fhole_start_x + fhole_height;
+
+				fprintf(gfile, "G00 X%.2f Y%.2f\n", fhole_start_x+lasertrim, fhole_start_y+lasertrim);
+				CUT();
+				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_end_x-lasertrim, fhole_start_y+lasertrim);
+				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_end_x-lasertrim, fhole_end_y-lasertrim);
+				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_start_x+lasertrim, fhole_end_y-lasertrim);
+				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_start_x+lasertrim, fhole_start_y+lasertrim);
+				UNCUT();
+				delay(gfile, delay_per_cell);
+
+			}
+		}
+
+
 		// Left vertical (joins bottom main cell board)
 		fprintf(gfile, "G00 X%.2f Y%.2f\n", front_origin_x-lasertrim, outline[3][Y]+thickness+lasertrim);
-		CUT();
+		CUT_PWR(vertical_power_mult);
 		for(int cury = ys[0]-1; cury >=0; cury--)
 		{
 			float finger_end_y = origin_y + wallgaps[1] + y_step*cury + hole/2.0 - finger_size_y/2.0;
@@ -750,7 +816,7 @@ n ||||  v step
 
 		UNCUT();
 		delay(gfile, delay_per_cell*3);
-		CUT();
+		CUT_PWR(vertical_power_mult);
 
 		// Right vertical (joins to top main cell board)
 
@@ -786,39 +852,7 @@ n ||||  v step
 		fprintf(gfile, "G01 X%.2f Y%.2f\n", front_origin_x-lasertrim, outline[3][Y]+thickness+lasertrim);
 
 		UNCUT();
-		delay(gfile, delay_per_cell*3);
-
-		// Cut ventilation holes
-
-		float fhole_width = (hole+cellgap) - front_mid_width;
-		float fhole_hstep = (cell_length - 2.0*thickness - 2.0*front_y_frame_width)/((float)num_front_holes_y);
-		float fhole_height = fhole_hstep-front_mid_width;
-
-		for(int cury = 0; cury < ys[0]; cury++)
-		{
-			float fhole_start_y = origin_y + wallgaps[1] + y_step*cury + hole/2.0 - fhole_width/2.0;
-			if(ys[0] == ys[1])
-				fhole_start_y += (hole+cellgap)/4.0;
-
-			float fhole_end_y = fhole_start_y + fhole_width;
-
-			for(int curx = 0; curx < num_front_holes_y; curx++)
-			{
-				float fhole_start_x = front_origin_x + thickness + front_y_frame_width + fhole_hstep*curx
-						+ front_mid_width/2.0;
-				float fhole_end_x = fhole_start_x + fhole_height;
-
-				fprintf(gfile, "G00 X%.2f Y%.2f\n", fhole_start_x+lasertrim, fhole_start_y+lasertrim);
-				CUT();
-				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_end_x-lasertrim, fhole_start_y+lasertrim);
-				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_end_x-lasertrim, fhole_end_y-lasertrim);
-				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_start_x+lasertrim, fhole_end_y-lasertrim);
-				fprintf(gfile, "G01 X%.2f Y%.2f\n", fhole_start_x+lasertrim, fhole_start_y+lasertrim);
-				UNCUT();
-				delay(gfile, delay_per_cell);
-
-			}
-		}
+//		delay(gfile, delay_per_cell*3);
 
 	}
 
